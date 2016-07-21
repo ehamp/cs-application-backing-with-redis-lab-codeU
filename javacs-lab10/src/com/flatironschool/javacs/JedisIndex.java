@@ -10,9 +10,13 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.jsoup.select.Elements;
+import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
+
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
+
 
 /**
  * Represents a Redis-backed web search index.
@@ -21,6 +25,7 @@ import redis.clients.jedis.Transaction;
 public class JedisIndex {
 
 	private Jedis jedis;
+	private String currUrl;
 
 	/**
 	 * Constructor.
@@ -67,8 +72,7 @@ public class JedisIndex {
 	 * @return Set of URLs.
 	 */
 	public Set<String> getURLs(String term) {
-        // FILL THIS IN!
-		return null;
+        return jedis.smembers(urlSetKey(term));
 	}
 
     /**
@@ -78,8 +82,14 @@ public class JedisIndex {
 	 * @return Map from URL to count.
 	 */
 	public Map<String, Integer> getCounts(String term) {
-        // FILL THIS IN!
-		return null;
+        Set<String> pages = getURLs(term);  //get just the one for the term 
+        Map<String, Integer> results = new HashMap<String, Integer>();
+        for(String page : pages){
+        	//for each of these urls, you want the term counter, term number 
+        	int count = getCount(page, term);
+        	results.put(page, count);
+        }
+		return results;
 	}
 
     /**
@@ -90,8 +100,9 @@ public class JedisIndex {
 	 * @return
 	 */
 	public Integer getCount(String url, String term) {
-        // FILL THIS IN!
-		return null;
+		String num = jedis.hget(termCounterKey(url), term);
+        int result = Integer.parseInt(num);
+        return result;
 	}
 
 
@@ -102,8 +113,68 @@ public class JedisIndex {
 	 * @param paragraphs  Collection of elements that should be indexed.
 	 */
 	public void indexPage(String url, Elements paragraphs) {
-        // FILL THIS IN!
+        // This creates all the term counters for a given url
+        currUrl = url;
+		processElements(paragraphs);
+       
+       	// for all the terms in this particular url, add the term -> term counter
+       	// for all terms we just added, add the url to the correct set representing a term
+       	// URLSET:term . add (page)
+
+       	//get the term counter for this page
+       	//for each of the terms in that term counter, add them to the urlKeySet
+       	Map<String, String> terms = jedis.hgetAll("TermCounter:" + url); //this is iffy
+
+       	Transaction t = jedis.multi();
+        for (String term : terms.keySet()) {
+        	//for all each term on the page, add the page to the index 
+        	t.sadd(urlSetKey(term), url);
+		}   
+		t.exec();
+		for(String ter : termCounterKeys()){
+			System.out.println(ter);
+		}
 	}
+
+	/**
+	 * Takes a collection of Elements and counts their words.
+	 * 
+	 * @param paragraphs
+	 */
+	public void processElements(Elements paragraphs) {
+		for (Node node: paragraphs) {
+			//System.out.println("in process elements");
+			processTree(node);
+		}
+	}
+	
+	/**
+	 * Finds TextNodes in a DOM tree and counts their words.
+	 * 
+	 * @param root
+	 */
+	public void processTree(Node root) {
+		// NOTE: we could use select to find the TextNodes, but since
+		// we already have a tree iterator, let's use it.
+		//System.out.println("In process tree");
+
+		Transaction t = jedis.multi();
+		for (Node node: new WikiNodeIterable(root)) {
+			if (node instanceof TextNode) {
+				// processText(((TextNode) node).text());
+				String text = ((TextNode) node).text();
+				String[] array = text.replaceAll("\\pP", " ").toLowerCase().split("\\s+");
+				for (int i=0; i<array.length; i++) {
+					String term = array[i];
+					//System.out.println("call incremeent term count");
+					t.hincrBy(termCounterKey(currUrl), term, 1);
+				}
+			}
+		}
+		t.exec();
+	}
+
+
 
 	/**
 	 * Prints the contents of the index.
@@ -223,14 +294,15 @@ public class JedisIndex {
 		Jedis jedis = JedisMaker.make();
 		JedisIndex index = new JedisIndex(jedis);
 		
-		//index.deleteTermCounters();
-		//index.deleteURLSets();
-		//index.deleteAllKeys();
+		System.out.println("deleting!");
+		index.deleteTermCounters();
+		index.deleteURLSets();
+		index.deleteAllKeys();
 		loadIndex(index);
 		
 		Map<String, Integer> map = index.getCounts("the");
 		for (Entry<String, Integer> entry: map.entrySet()) {
-			System.out.println(entry);
+			//System.out.println(entry);
 		}
 	}
 

@@ -95,7 +95,7 @@ public class Index {
 	 * @throws IOException 
 	 */
 	public static void main(String[] args) throws IOException {
-		
+		System.out.println("here in index.java");
 		WikiFetcher wf = new WikiFetcher();
 		Index indexer = new Index();
 

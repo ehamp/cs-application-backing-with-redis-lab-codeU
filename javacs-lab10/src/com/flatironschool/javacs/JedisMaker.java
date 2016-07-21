@@ -30,7 +30,6 @@ public class JedisMaker {
 		URL fileURL = JedisMaker.class.getClassLoader().getResource(filename);
                 String filepath = URLDecoder.decode(fileURL.getFile(), "UTF-8");
 		StringBuilder sb = new StringBuilder();
-
 		BufferedReader br;
 		try {
                     br = new BufferedReader(new FileReader(filepath));
@@ -39,14 +38,12 @@ public class JedisMaker {
 			printInstructions();
 			return null;
 		}
-
 		while (true) {
 			String line = br.readLine();
 			if (line == null) break;
 			sb.append(line);
 		}
 		br.close();
-
 		URI uri;
 		try {
 			uri = new URI(sb.toString());
@@ -67,7 +64,7 @@ public class JedisMaker {
 		//int port = 10534;
 		//String auth = System.getenv("REDISTOGO_AUTH");
 
-		Jedis jedis = new Jedis(host, port);
+		Jedis jedis = new Jedis(host, port, 1800);
 
 		try {
 			jedis.auth(auth);
